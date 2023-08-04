@@ -1,4 +1,5 @@
 
+from collections import namedtuple
 import skimage
 from PIL import Image
 import re
@@ -40,3 +41,18 @@ def get_numpy_datatype_unsigned_int(largest_value):
 def ensure_path_exists(path):
     os.makedirs(path, exist_ok=True)
     return os.path.exists(path)
+
+# return file name and ext and remove all dangerous chars like '.'
+def safe_basename(path):
+    return os.path.basename(path).replace('.','_')
+
+Stage1Method = namedtuple('Stage1Method', 'basename, channel, radius, npoints')
+
+def generate_stage1_filename(basename, channel, radius, npoints):
+    return '{}_lbp_ch{}_r{}_n{}.npy'.format(basename, channel, radius, npoints)
+
+def parse_stage1_filename(name):
+    tok = name.split('.')[0] # remove all extentions
+    tok = name.split('_')
+    basename, channel, radius, npoints = tok # explicit to raise error if smthng is wrong
+    return Stage1Method(basename, channel, radius, npoints)

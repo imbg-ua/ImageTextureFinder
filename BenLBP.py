@@ -5,7 +5,7 @@ Refactored by mkrooted256
 import os
 import getopt
 from collections import namedtuple
-from utils import ensure_path_exists, get_dims_tiff, get_npoints_for_radius, get_numpy_datatype_unsigned_int, get_radii, get_infile_extention_regex
+from utils import *
 import logging
 
 import matplotlib.pyplot as plt
@@ -38,6 +38,14 @@ from datetime import datetime
 from tqdm.notebook import trange, tqdm
 from joblib import Parallel, delayed
 from numba import njit
+from tqdm import tqdm
+from scipy import ndimage as ndi
+from functools import partial
+from copy import deepcopy
+from itertools import product
+from datetime import datetime
+from tqdm.notebook import trange, tqdm
+import anndata as ad
 
 import useful_functions as uf 
 
@@ -49,13 +57,21 @@ features todo:
 # Current working directory
 cwd = os.getcwd();
 
-Environment = namedtuple('Environment', 'indir, outdir, nthreads, nradii')
+Environment = namedtuple('Environment', 'indir, outdir, nthreads, nradii, patchsize, stages, imgname')
 env = Environment(
     indir=os.path.join(cwd, 'data', 'in'),
     outdir=os.path.join(cwd, 'data', 'out'),
     nthreads=8,
-    nradii=15
+    nradii=15,
+    patchsize=100,
+    stages=None,
+    imgname=None
 )
+
+OUTPUT_DIRS = [
+    '1_lbp_output',
+    '2_patches'
+]
 
 #
 # ================= SETTING UP ====================
@@ -73,6 +89,38 @@ def setup_environment():
     pd.set_option('display.expand_frame_repr', False)
     pd.set_option('max_colwidth', None)
     Image.MAX_IMAGE_PIXELS = None # to skip compression bomb check in PIL
+
+    # Parse cli arguments
+    optlist, args = getopt.getopt(sys.argv, "", ['stages=', 'indir=', 'outdir=', 'nthreads=', 'nradii=', 'patchsize=', 'imgname='])
+    
+    for opt,val in optlist[0]:
+        if opt in ['indir', 'outdir', 'imgname']:
+            env[opt] = val
+        if opt in ['nthreads', 'nradii', 'patchsize']:
+            env[opt] = int(val)
+        if opt == 'stages':
+            # stages in a format of `1,2,3,4,5` or `1-5` (incl.)
+            if '-' in val and ',' in val:
+                logging.error("setup_environment: Mixed , and - usage in `stages` parameter. I am not going to parse this.")
+                return False
+            if ',' in val:
+                env.stages = map(int,val.split(','))
+            elif '-' in val:
+                nums = map(int, val.split('-'))
+                env.stages = list(range(nums[0],nums[2]+1))
+    # end for
+    
+    if not env.stages:
+        logging.error('setup_environment: No stages to execute. `stages=` argument is required. Aborting')
+        return False
+    logging.info(f'setup_environment: Got stages {env.stages}')
+
+    if 2 in env.stages and not env.imgname:
+        logging.error('Stage 2 requested but no `imgname` provided. `imgname=` parameter is required')
+        return False
+        
+    logging.info('Environment:')
+    logging.info(env)
 
     return True
 
@@ -92,7 +140,7 @@ def prepare_jobs():
             if entry.name.startswith('.') or not entry.is_file():
                 continue
             if not ext_filter.match(entry.name):
-                logging.warn("File '{}' has an unsupported format".format(entry.name))
+                logging.warn("File '{}' has an unsupported file extention".format(entry.name))
                 continue
             img_list.append(entry.path)
     logging.info("Input files:\n%s", '\n'.join(img_list))
@@ -108,8 +156,11 @@ def prepare_jobs():
     df_all['method'] = 'uniform'
 
     df_all['safe_infilename'] = df_all['Filenames'].str.replace(pat='.', repl='_', regex=False)
-    df_all['Subfolder'] = df_all.apply(lambda row: os.path.join(env.outdir, row['safe_infilename']), axis=0)
-    df_all['outfilename'] = df_all.apply(lambda row: '{}_ch{}_r{}.npy'.format(row['safe_infilename'], row['channel'], row['radius']), axis=0)
+    
+    # Output file will be {env.outdir}/1_lbp_output/{safe_filename}/{safe_infilename}_ch{channel}_r{radius}.npy
+    df_all['Subfolder'] = df_all.apply(lambda row: os.path.join(env.outdir, OUTPUT_DIRS[0], row['safe_infilename']), axis=0)
+
+    df_all['outfilename'] = df_all.apply(lambda row: generate_stage1_filename(row['safe_infilename'], row['channel'], row['radius'], row['n_points']), axis=0)
     df_all['Fpath_out'] = df_all.apply(lambda row: os.path.join(df_all['Subfolder'], df_all['outfilename']), axis=0)
     
     df_all['patchsize'] = 100
@@ -134,7 +185,7 @@ def prepare_jobs():
     return df_all
 
 #
-# ================= COMPUTATION ====================
+# ================= STAGE 1 ====================
 #
 
 @njit
@@ -161,11 +212,12 @@ def apply_LBP_to_img(img, current_jobs, job_idx):
     lbp = uf.crop_to_superpixel(lbp, job['patchsize'])
     lbp_bincounts = bincount_the_patches(lbp, job['patchsize'], job['n_points'])
     np.save(job['Fpath_out'], lbp_bincounts)
+    np.save(f"{job['Fpath_out']}.imgshp", job['dims']) # save image size as well for futher processing
 
     return 0
 
 # formerly 'load_images'
-def process_single_input_image(image_fname, df_jobs, input_dir):
+def lbp_process_single_input_image(image_fname, df_jobs, input_dir):
     logging.info("Begin processing '%s'", image_fname)
 
     Image.MAX_IMAGE_PIXELS = None
@@ -178,13 +230,139 @@ def process_single_input_image(image_fname, df_jobs, input_dir):
 
     logging.info("End processing '%s'", image_fname)
 
-def process_all_images(df_pending_jobs, input_dir, n_threads, input_imgs):
+def lbp_process_all_images(df_pending_jobs, input_dir, n_threads, input_imgs):
     logging.info('Begin running all pending jobs (%d).', df_pending_jobs.shape[0])
     Parallel(n_jobs=n_threads)(
-        ( delayed(process_single_input_image)(img_fname, df_pending_jobs, input_dir) )
+        ( delayed(lbp_process_single_input_image)(img_fname, df_pending_jobs, input_dir) )
             for img_fname in tqdm(input_imgs, total=len(input_imgs))
     )
     logging.info('End running all pending jobs.')
+
+#
+# ================= STAGE 2 ====================
+#
+
+maxi = 3328 #this is the maximum value that the LBP could get to
+
+# process all results for a single image.
+# returns AnnData 
+def stage2_worker(input_basename, stage1_output_dir, original_index, output_filename):
+    logging.info(f"stage2_worker: begin. {input_basename, stage1_output_dir, original_index, output_filename}")
+    
+    # find all files of stage1 output dir for a single image.
+    # that is, stage1_output_dir should contain .npy files
+    data_paths = [] # file paths
+    method_names = []  # method names = file basenames
+    method_list = []  # List[Stage1Method]
+    method_list_cols = []  # List[str]. cartesian product of methods and {0...npoints+1}
+    with os.scandir(stage1_output_dir) as sd:
+        logging.info(f'stage2_worker: scanning "{stage1_output_dir}" for methods')
+        for entry in sd: 
+            if entry.is_file and entry.name.endswith('.npy'): 
+                name = entry.name[:-4]
+                method = parse_stage1_filename(name)
+                data_paths.append(entry.path)
+                method_names.append(name) # filename without extention
+                method_list.append(method)
+                method_list_cols += [ f"{name}_v{i}" for i in range(0, method.npoints+2) ]
+                n_method_list_cols += 1
+    
+    logging.info(f'stage2_worker: found {len(data_paths)} methods. generated {len(method_list_cols)} method_list_cols')
+    logging.debug(method_names)
+    
+    # get shape from any file -- it should be the same across all of them
+    fpath_for_shape = data_paths[0]
+    this_test_array = np.load(fpath_for_shape, mmap_mode='r')
+    this_shape = this_test_array.shape
+    this_dtype = this_test_array.dtype
+
+    #this part creates the X0 and X1 coordinates
+    x0_array = np.zeros((this_shape[0], this_shape[1]), dtype=np.uint16)
+    for i0 in range(this_shape[0]):
+        x0_array[i0] = i0
+    
+    x1_array = np.zeros((this_shape[0], this_shape[1]), dtype=np.uint16)
+    for i1 in range(this_shape[1]):
+        x1_array[:, i1] = i1
+        
+    #loading the groundtruth
+#    gt = np.load(directory_gt + output_fname_annotated.replace('.jpg', '.npy'))
+    
+    output_array = np.zeros((this_shape[0], this_shape[1], len(method_list_cols)), dtype=this_dtype)
+#    print(this_shape, this_dtype, output_array.shape)
+    
+    start_index = 0
+    for idx, (path, method) in enumerate(zip(data_paths, method_list)):
+        fpath_to_add = path
+        this_npoints = method.npoints
+        array_to_add = np.load(fpath_to_add)
+        end_index = start_index + this_npoints + 2
+        #add to the array
+#        print(fpath_to_add, start_index, end_index, array_to_add.shape)
+        output_array[:, :, start_index:end_index] = array_to_add
+        start_index = end_index
+    
+    #this part reshapes the arrays
+    reshaped = np.reshape(output_array, (-1, output_array.shape[2]))
+    reshaped_x0 = np.reshape(x0_array, (-1))
+    reshaped_x1 = np.reshape(x1_array, (-1))
+#    reshaped_gt = np.reshape(gt, (-1))
+    reshaped_gt = np.zeros(reshaped_x0.shape)
+        
+    this_AD = ad.AnnData(reshaped, var=method_list_cols, dtype=np.uint16)
+    
+    this_AD.obs['this_image_index'] = this_AD.obs.index
+    this_AD.obs['X0'] = reshaped_x0 
+    this_AD.obs['X1'] = reshaped_x1 
+    this_AD.obs['Groundtruth'] = reshaped_gt
+    this_AD.obs['original_index'] = original_index
+    this_AD.obs['output_filename'] = output_filename
+#    this_AD.obs['output_fname_annotated'] = output_fname_annotated
+    
+    logging.info(f"stage2_worker: end. {input_basename, stage1_output_dir, original_index, output_filename}")
+
+    return this_AD
+
+# this is hardcoded to handle the first image only 
+def stage2_single(input_file_name, patchsize=100):
+    input_img_fullpath = os.path.join(env.indir, input_file_name)
+    input_img_basename = safe_basename(input_img_fullpath)
+    if not os.path.exists(input_img_fullpath):
+        logging.error(f'Cannot find any original images in \'{env.indir}\' that look like {input_file_name}')
+        sys.exit(1)
+
+    stage1_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[0])
+    stage2_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[1])
+
+    this_shape = get_dims_tiff(input_img_fullpath)
+    image_width = this_shape[0]
+    image_height = this_shape[1]
+    
+    height_sp = math.floor(image_height/patchsize)
+    width_sp = math.floor(image_width/patchsize)
+    overall_number_of_patches = height_sp*width_sp
+
+    logging.info(f'stage2: {input_img_basename} ({image_width}*{image_height}): overall_number_of_patches = {height_sp}*{width_sp} = {overall_number_of_patches}')
+
+    anndata_result = stage2_worker(input_img_basename, stage1_output_dir, 0, input_img_basename)
+    n = anndata_result.X.shape[0]
+    out_array_shortened = anndata_result.X
+    obs_concat = pd.concat([anndata_result.obs], ignore_index=True)
+    logging.info(f'stage2: ad.__version__ = {ad.__version__}')
+
+    start = datetime.now();
+    output_path = os.path.join(stage2_output_dir, input_img_basename, f'{input_img_basename}_LBP_X.npy')
+    logging.info(f'stage2: saving results to {output_path}...')
+    np.save(output_path, out_array_shortened)
+    logging.info(f'stage2: done saving results. took {datetime.now()-start}')
+
+    obs_output_path = os.path.join(stage2_output_dir, input_img_basename, f'{input_img_basename}_LBP_OBS.csv')
+    var_output_path = os.path.join(stage2_output_dir, input_img_basename, f'{input_img_basename}_LBP_VAR.csv')
+    logging.info(f'stage2: saving metadata to {os.path.join(stage2_output_dir, input_img_basename)}...')
+    np.save(obs_output_path, obs_concat)
+    np.save(var_output_path, anndata_result.var) # todo: check if `var` is the right field 
+    logging.info(f'stage2: done saving metadata. took {datetime.now()-start}')
+
 
 #
 # ================= MAIN ====================
@@ -192,10 +370,8 @@ def process_all_images(df_pending_jobs, input_dir, n_threads, input_imgs):
 
 
 def main():
-    optlist, args = getopt.getopt(sys.argv, "", ['indir=', 'outdir=', 'nthreads=', 'nradii=', 'skip-cluster-checks'])
-    for opt,val in optlist[0]:
-        if opt in ['indir', 'outdir', 'nthreads', 'nradii']:
-            env[opt] = val
+    logging.info('Henlo')
+
     reload(uf)
     if not setup_environment():
         logging.error('Env not ok')
@@ -203,14 +379,25 @@ def main():
 
     logging.info('Env ok')
 
-    df_jobs = prepare_jobs()
-    df_pending_jobs = df_jobs.loc[df_jobs['Fpath_out_exists'] == False]
-    logging.info('pending jobs:\n%s', '\n'.join(df_pending_jobs['outfilename']))
+    if 1 in env.stages:
+        logging.info('STAGE 1 BEGIN')
+        start = datetime.now();
+        df_jobs = prepare_jobs()
+        df_pending_jobs = df_jobs.loc[df_jobs['Fpath_out_exists'] == False]
+        logging.info('pending jobs:\n%s', '\n'.join(df_pending_jobs['outfilename']))
 
-    img_list = list(df_pending_jobs['Filenames'].unique())
-    process_all_images(df_pending_jobs, env.indir, env.nthreads, img_list)
+        img_list = list(df_pending_jobs['Filenames'].unique())
+        lbp_process_all_images(df_pending_jobs, env.indir, env.nthreads, img_list)
+        logging.info(f'STAGE 1 END. took {datetime.now()-start}')
 
-    logging.info('Goodbye!')
+    if 2 in env.stages:
+        logging.info('STAGE 2 BEGIN')
+        start = datetime.now();
+        stage2_single(env.imgname, env.patchsize)
+        logging.info(f'STAGE 2 END. took {datetime.now()-start}')
+
+    logging.info('Goodbye')
+
     return
 
 
