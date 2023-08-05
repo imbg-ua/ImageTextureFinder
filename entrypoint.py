@@ -40,10 +40,13 @@ def setup_environment():
 
     # Parse cli arguments
     optlist, args = getopt.getopt(sys.argv, "", ['stages=', 'indir=', 'outdir=', 'nthreads=', 'nradii=', 'patchsize=', 'imgname='])
-    
+    indir_set, outdir_set = False, False
+
     for opt,val in optlist[0]:
         if opt in ['indir', 'outdir', 'imgname']:
             env[opt] = val
+            if opt == 'indir': indir_set = True
+            if opt == 'outdir': outdir_set = True
         if opt in ['nthreads', 'nradii', 'patchsize']:
             env[opt] = int(val)
         if opt == 'stages':
@@ -58,13 +61,18 @@ def setup_environment():
                 env.stages = list(range(nums[0],nums[2]+1))
     # end for
     
+    if not indir_set:
+        logging.warn(f"setup_environment: `--indir=` arg not set. using default {env.indir}")
+    if not outdir_set:
+        logging.warn(f"setup_environment: `--outdir=` arg not set. using default {env.outdir}")
+
     if not env.stages:
-        logging.error('setup_environment: No stages to execute. `stages=` argument is required. Aborting')
+        logging.error('setup_environment: No stages to execute. `--stages=` argument is required. Aborting')
         return False
     logging.info(f'setup_environment: Got stages {env.stages}')
 
     if 2 in env.stages and not env.imgname:
-        logging.error('Stage 2 requested but no `imgname` provided. `imgname=` parameter is required')
+        logging.error('Stage 2 requested but no imgname provided. `--imgname=` parameter is required')
         return False
         
     logging.info('Environment:')
@@ -102,6 +110,19 @@ def main():
         start = datetime.now();
         stage2_single(env.imgname, env.patchsize)
         logging.info(f'STAGE 2 END. took {datetime.now()-start}')
+
+    if 3 in env.stages:
+        logging.info('STAGE 3 BEGIN')
+        start = datetime.now();
+        stage3_umap_single(env.imgname)
+        logging.info(f'STAGE 3 END. took {datetime.now()-start}')
+
+    if 4 in env.stages:
+        logging.info('STAGE 4 BEGIN')
+        start = datetime.now();
+        stage4_umap_clustering(env.imgname)
+        logging.info(f'STAGE 4 END. took {datetime.now()-start}')
+
 
     logging.info('Goodbye')
 
