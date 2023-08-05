@@ -1,6 +1,5 @@
 
 from collections import namedtuple
-import skimage
 from PIL import Image
 import re
 import numpy as np
@@ -24,7 +23,8 @@ COLORS=['#0072b2','#d55e00','#009e73', '#cc79a7','#f0e442','#56b4e9']
 
 OUTPUT_DIRS = [
     '1_lbp_output',
-    '2_patches'
+    '2_patches',
+    '3_umap'
 ]
 
 def get_radii(n=15):

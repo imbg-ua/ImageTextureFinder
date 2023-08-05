@@ -5,43 +5,20 @@ from collections import namedtuple
 from common import *
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import math
 from PIL import Image
-import cv2
 import skimage
-import tifffile
 import os
 import pandas as pd
 import sys
-import time
 
-import matplotlib.pyplot as plt
-import numpy as np
-import math
-from PIL import Image
-import cv2
-import skimage
-import tifffile
-import os
-import matplotlib
-import matplotlib.patheffects as path_effects
-from functools import partial
 from skimage.feature import local_binary_pattern
-from importlib import reload
-from itertools import repeat
 from datetime import datetime
+from tqdm import tqdm
 from tqdm.notebook import trange, tqdm
 from joblib import Parallel, delayed
 from numba import njit
-from tqdm import tqdm
-from scipy import ndimage as ndi
-from functools import partial
-from copy import deepcopy
-from itertools import product
-from datetime import datetime
-from tqdm.notebook import trange, tqdm
 import anndata as ad
 
 import useful_functions as uf 
@@ -251,7 +228,7 @@ def stage2_single(input_file_name, patchsize=100):
     input_img_fullpath = os.path.join(env.indir, input_file_name)
     input_img_basename = safe_basename(input_img_fullpath)
     if not os.path.exists(input_img_fullpath):
-        logging.error(f'Cannot find any original images in \'{env.indir}\' that look like {input_file_name}')
+        logging.error(f'stage2_single: Cannot find any original images in \'{env.indir}\' that look like {input_file_name}')
         sys.exit(1)
 
     stage1_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[0])
