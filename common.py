@@ -6,6 +6,27 @@ import re
 import numpy as np
 import os
 
+cwd = os.getcwd();
+
+Environment = namedtuple('Environment', 'indir, outdir, nthreads, nradii, patchsize, stages, imgname')
+global env             # to share an instance between files
+env = Environment(
+    indir=os.path.join(cwd, 'data', 'in'),
+    outdir=os.path.join(cwd, 'data', 'out'),
+    nthreads=8,
+    nradii=15,
+    patchsize=100,
+    stages=None,
+    imgname=None
+)
+
+COLORS=['#0072b2','#d55e00','#009e73', '#cc79a7','#f0e442','#56b4e9']
+
+OUTPUT_DIRS = [
+    '1_lbp_output',
+    '2_patches'
+]
+
 def get_radii(n=15):
     radius_list = [round(1.499*1.327**(float(x))) for x in range(0, n)]
     return radius_list
