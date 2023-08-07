@@ -51,7 +51,7 @@ def prepare_stage1_jobs():
 
     # Generate job list
     df_all = pd.DataFrame(img_list, columns=['Filenames'])
-    df_all['dims'] = list(map(get_dims_tiff, [env.indir]*len(df_all) + df_all['Filenames']))
+    df_all['dims'] = list(map(get_dims_from_image, [env.indir]*len(df_all) + df_all['Filenames']))
     df_all = uf.create_df_cross_for_separate_dfs(df_all,
                                                 pd.DataFrame(radius_list, columns=['radius']))
     df_all = uf.create_df_cross_for_separate_dfs(df_all,
@@ -231,10 +231,10 @@ def stage2_single(input_file_name, patchsize=100):
         logging.error(f'stage2_single: Cannot find any original images in \'{env.indir}\' that look like {input_file_name}')
         sys.exit(1)
 
-    stage1_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[0])
-    stage2_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[1])
+    stage1_output_dir = get_outdir(STAGE1, input_img_basename)
+    stage2_output_dir = get_outdir(STAGE2, input_img_basename)
 
-    this_shape = get_dims_tiff(input_img_fullpath)
+    this_shape = get_dims_from_image(input_img_fullpath)
     image_width = this_shape[0]
     image_height = this_shape[1]
     
@@ -251,14 +251,14 @@ def stage2_single(input_file_name, patchsize=100):
     logging.info(f'stage2: ad.__version__ = {ad.__version__}')
 
     start = datetime.now();
-    output_path = os.path.join(stage2_output_dir, input_img_basename, f'{input_img_basename}_LBP_X.npy')
+    output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_X.npy')
     logging.info(f'stage2: saving results to {output_path}...')
     np.save(output_path, out_array_shortened)
     logging.info(f'stage2: done saving results. took {datetime.now()-start}')
 
-    obs_output_path = os.path.join(stage2_output_dir, input_img_basename, f'{input_img_basename}_LBP_OBS.csv')
-    var_output_path = os.path.join(stage2_output_dir, input_img_basename, f'{input_img_basename}_LBP_VAR.csv')
-    logging.info(f'stage2: saving metadata to {os.path.join(stage2_output_dir, input_img_basename)}...')
+    obs_output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_OBS.csv')
+    var_output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_VAR.csv')
+    logging.info(f'stage2: saving metadata to {stage2_output_dir}...')
     np.save(obs_output_path, obs_concat)
     np.save(var_output_path, anndata_result.var) # todo: check if `var` is the right field 
     logging.info(f'stage2: done saving metadata. took {datetime.now()-start}')

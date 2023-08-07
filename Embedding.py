@@ -48,17 +48,16 @@ def stage3_umap_single(input_file_name):
 
     logging.info(f'stage3_umap_single: begin. input_img_basename={input_img_basename}')
 
-    stage1_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[0])
-    stage2_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[1])
-    stage3_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[2])
+    stage2_output_dir = get_outdir(STAGE2, input_img_basename)
+    stage3_output_dir = get_outdir(STAGE3, input_img_basename)
 
-    this_shape = get_dims_tiff(input_img_fullpath)
+    this_shape = get_dims_from_image(input_img_fullpath)
     image_width = this_shape[0]
     image_height = this_shape[1]
 
     mycolors = uf.return_color_scale('block_colors_for_labels_against_white_small_points')
 
-    directory_X_scaled = os.path.join(stage2_output_dir, input_img_basename)
+    directory_X_scaled = stage2_output_dir
     filename_X_scaled = f'{input_img_basename}_LBP_X.npy'
     X = np.load(os.path.join(directory_X_scaled, filename_X_scaled), mmap_mode='r')
     logging.info(f'stage3_umap_single: Loading {filename_X_scaled}: {X.shape}, {X.dtype}')
@@ -153,18 +152,12 @@ def stage4_umap_clustering(input_file_name):
         
     logging.info(f'stage4_umap_clustering: begin. input_img_basename={input_img_basename}')
 
-    stage1_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[0])
-    stage2_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[1])
-    stage3_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[2])
-    stage4_output_dir = os.path.join(env.outdir, OUTPUT_DIRS[3])
+    stage2_output_dir = get_outdir(STAGE2, input_img_basename)
+    stage4_output_dir = get_outdir(STAGE4, input_img_basename)
 
-    this_shape = get_dims_tiff(input_img_fullpath)
+    this_shape = get_dims_from_image(input_img_fullpath)
     image_width = this_shape[0]
     image_height = this_shape[1]
-
-    directory_output_masks = stage4_output_dir # was 'HDBScan_Output_masks'
-    if not os.path.exists(directory_output_masks):
-        os.mkdir(directory_output_masks)
 
     mycolors = uf.return_color_scale('block_colors_for_labels_against_white_small_points')
     gray = (0.6, 0.6, 0.6)
@@ -195,7 +188,7 @@ def stage4_umap_clustering(input_file_name):
                     }
     
     # note that we use stage 2 output
-    directory_X_scaled = os.path.join(stage2_output_dir, input_img_basename)
+    directory_X_scaled = stage2_output_dir
     filename_X_scaled = f'{input_img_basename}_LBP_X.npy'
     X = np.load(os.path.join(directory_X_scaled, filename_X_scaled), mmap_mode='r')
     logging.info(f'stage4_umap_clustering: Loading {filename_X_scaled}: {X.shape}, {X.dtype}')

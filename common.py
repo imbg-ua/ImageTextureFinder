@@ -7,7 +7,8 @@ import os
 
 cwd = os.getcwd();
 
-Environment = namedtuple('Environment', 'indir, outdir, nthreads, nradii, patchsize, stages, imgname')
+Environment = namedtuple('Environment', 
+                         'indir, outdir, nthreads, nradii, patchsize, stages, imgname, final_target_size, partial_upscale')
 global env             # to share an instance between files
 env = Environment(
     indir=os.path.join(cwd, 'data', 'in'),
@@ -16,7 +17,9 @@ env = Environment(
     nradii=15,
     patchsize=100,
     stages=None,
-    imgname=None
+    imgname=None,
+    partial_upscale=10,
+    final_target_size=1
 )
 
 COLORS=['#0072b2','#d55e00','#009e73', '#cc79a7','#f0e442','#56b4e9']
@@ -25,8 +28,21 @@ OUTPUT_DIRS = [
     '1_lbp_output',
     '2_patches',
     '3_umap',
-    '4_clustering'
+    '4_clustering', # was 'HDBScan_Output_masks'
+    '5_viz'
 ]
+
+# Stage literals
+STAGE1, STAGE2, STAGE3, STAGE4, STAGE5 = 1,2,3,4,5
+
+"""
+stage: int \in {1,2,3,4,5}
+img_basename: should be a safename of an image (see `safe_basename``)
+"""
+def get_outdir(stage, img_basename):
+    stage = int(stage)
+    if not (1 <= stage <= 5): raise ValueError('Stage should be in {1,2,3,4,5}')
+    return os.path.join(env.indir, OUTPUT_DIRS[stage], img_basename)
 
 def get_radii(n=15):
     radius_list = [round(1.499*1.327**(float(x))) for x in range(0, n)]
@@ -39,11 +55,11 @@ def get_npoints_for_radius(r):
 def get_colors():
     return ['#0072b2','#009e73','#d55e00', '#cc79a7','#f0e442','#56b4e9']
 
-def get_dims_tiff(filepath):
+def get_dims_from_image(filepath):
     Image.MAX_IMAGE_PIXELS = None
     image = Image.open(filepath, mode='r') # PIL.Image.open loads only file header, not the actual raster data 
     channels_num = len(image.getbands())
-    return (image.height, image.width, channels_num)
+    return (image.width, image.height, channels_num) # todo: i bloody hope the order is correct
 
 # regex to filter supported input file extentions
 def get_infile_extention_regex():
