@@ -1,12 +1,5 @@
 import os
 import getopt
-from collections import namedtuple
-from common import *
-import logging
-
-import os
-import getopt
-from collections import namedtuple
 from common import *
 import logging
 
@@ -30,6 +23,9 @@ import skimage
 
 import useful_functions as uf 
 import numba_funcs as nf
+
+from namedlist import namedlist
+from dataclasses import dataclass
 
 # ==
 from copy import deepcopy
@@ -63,12 +59,19 @@ def rgb2labelint(img, array_of_colors = None):
     return output
 
 
-
-VizColors = namedtuple('VizColors', 
-                       'colors_with_inital_grey, rgb_colors_with_inital_grey, rgba_colors_with_inital_grey,'+
-                       'rgba_colors_with_inital_transparent, dict_colors_initial_transp, dict_colors_initial_transp_0to1,'+
-                       'dict_gray_out_colors, rgb_colors_with_inital_grey_0to1'+
-                       'df_colors, df_colors_out, df_colors_out_no_zero')
+@dataclass
+class VizColors: 
+    colors_with_inital_grey: 'typing.Any'
+    rgb_colors_with_inital_grey: 'typing.Any'
+    rgba_colors_with_inital_grey: 'typing.Any'
+    rgba_colors_with_inital_transparent: 'typing.Any'
+    dict_colors_initial_transp: 'typing.Any'
+    dict_colors_initial_transp_0to1: 'typing.Any'
+    dict_gray_out_colors: 'typing.Any'
+    rgb_colors_with_inital_grey_0to1: 'typing.Any'
+    df_colors: 'typing.Any'
+    df_colors_out: 'typing.Any'
+    df_colors_out_no_zero: 'typing.Any'
 
 def load_viz_colors():
     colors_bundle = VizColors()

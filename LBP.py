@@ -18,7 +18,7 @@ from datetime import datetime
 from tqdm import tqdm
 from tqdm.notebook import trange, tqdm
 from joblib import Parallel, delayed
-from numba import njit
+from numba import njit, jit
 import anndata as ad
 
 import useful_functions as uf 
@@ -38,20 +38,25 @@ def prepare_stage1_jobs():
     # Find all input files
     img_list = [] 
     with os.scandir(env.indir) as scandir:
-        logging.info("Searching for input files in '{}'.".format(env.indir))
+        logging.info("prepare_stage1_jobs: Searching for input files in '{}'.".format(env.indir))
         ext_filter = get_infile_extention_regex()
         for entry in scandir:
             if entry.name.startswith('.') or not entry.is_file():
                 continue
             if not ext_filter.match(entry.name):
-                logging.warn("File '{}' has an unsupported file extention".format(entry.name))
+                logging.warn("prepare_stage1_jobs: File '{}' has an unsupported file extention".format(entry.name))
                 continue
-            img_list.append(entry.path)
-    logging.info("Input files:\n%s", '\n'.join(img_list))
+            img_list.append(entry.name)
+            
+    if not img_list:
+        logging.warning("prepare_stage1_jobs: No input files found! Aborting.")
+        sys.exit(1)
+        
+    logging.info("prepare_stage1_jobs: Input files:\n%s", '\n'.join(img_list))
 
     # Generate job list
     df_all = pd.DataFrame(img_list, columns=['Filenames'])
-    df_all['dims'] = list(map(get_dims_from_image, [env.indir]*len(df_all) + df_all['Filenames']))
+    df_all['dims'] = list(map(lambda fname: get_dims_from_image(os.path.join(env.indir, fname)), df_all['Filenames']))
     df_all = uf.create_df_cross_for_separate_dfs(df_all,
                                                 pd.DataFrame(radius_list, columns=['radius']))
     df_all = uf.create_df_cross_for_separate_dfs(df_all,
@@ -62,10 +67,10 @@ def prepare_stage1_jobs():
     df_all['safe_infilename'] = df_all['Filenames'].str.replace(pat='.', repl='_', regex=False)
     
     # Output file will be {env.outdir}/1_lbp_output/{safe_filename}/{safe_infilename}_ch{channel}_r{radius}.npy
-    df_all['Subfolder'] = df_all.apply(lambda row: os.path.join(env.outdir, OUTPUT_DIRS[0], row['safe_infilename']), axis=0)
+    df_all['Subfolder'] = df_all.apply(lambda row: os.path.join(env.outdir, OUTPUT_DIRS[0], row['safe_infilename']), axis=1, result_type='reduce')
 
-    df_all['outfilename'] = df_all.apply(lambda row: generate_stage1_filename(row['safe_infilename'], row['channel'], row['radius'], row['n_points']), axis=0)
-    df_all['Fpath_out'] = df_all.apply(lambda row: os.path.join(df_all['Subfolder'], df_all['outfilename']), axis=0)
+    df_all['outfilename'] = df_all.apply(lambda row: generate_stage1_filename(row['safe_infilename'], row['channel'], row['radius'], row['n_points']), axis=1,  result_type='reduce')
+    df_all['Fpath_out'] = df_all.apply(lambda row: os.path.join(row['Subfolder'], row['outfilename']), axis=1,  result_type='reduce')
     
     df_all['patchsize'] = 100
 
@@ -75,20 +80,20 @@ def prepare_stage1_jobs():
     max_npoints = df_all['n_points'].max()
     mydtype = get_numpy_datatype_unsigned_int(max_npoints);
     df_all['mydtype'] = mydtype
-    logging.info('dtype is {}'.format(mydtype))
+    logging.info('prepare_stage1_jobs: dtype is {}'.format(mydtype))
 
     # check for existing output directories
-    df_all['Subfolder_exists'] = df_all.apply(lambda row: ensure_path_exists(row['Subfolder']))
-    logging.info(df_all['Subfolder_exists'].value_counts)
+    df_all['Subfolder_exists'] = df_all.apply(lambda row: ensure_path_exists(row['Subfolder']), axis=1, result_type='reduce')
+    logging.info(df_all['Subfolder_exists'].value_counts())
 
-    df_all['Fpath_out_exists'] = df_all.apply(lambda row: os.path.exists(row['Fpath_out']))
-    logging.info(df_all['Fpath_out_exists'].value_counts)
+    df_all['Fpath_out_exists'] = df_all.apply(lambda row: os.path.exists(row['Fpath_out']), axis=1, result_type='reduce')
+    logging.info(df_all['Fpath_out_exists'].value_counts())
 
     logging.debug('job list:')
     logging.debug(df_all)
     return df_all
 
-@njit
+#@jit
 def bincount_the_patches(lbp, patchsize, n_points):
     sizex0 = int(lbp.shape[0]/patchsize)
     sizex1 = int(lbp.shape[1]/patchsize)
