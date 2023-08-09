@@ -4,7 +4,7 @@ Refactored by mkrooted256
 
 import os
 import getopt
-from collections import namedtuple
+from dataclasses import dataclass, replace
 import logging
 
 import sys
@@ -25,6 +25,9 @@ features todo:
 # ================= SETTING UP ====================
 #
 
+logging.basicConfig(encoding='utf-8', level=logging.DEBUG)
+
+
 def setup_environment():
     """
     todo: 
@@ -38,33 +41,57 @@ def setup_environment():
     pd.set_option('max_colwidth', None)
     Image.MAX_IMAGE_PIXELS = None # to skip compression bomb check in PIL
 
+    logging.debug('args:')
+    logging.debug(sys.argv)
+    
     # Parse cli arguments
-    optlist, args = getopt.getopt(sys.argv, "", ['stages=', 'indir=', 'outdir=', 'nthreads=', 'nradii=', 'patchsize=', 'imgname='])
+    optlist, args = getopt.getopt(sys.argv[1:], "", ['stages=', 'indir=', 'outdir=', 'nthreads=', 'nradii=', 'patchsize=', 'imgname='])
     indir_set, outdir_set = False, False
 
-    for opt,val in optlist[0]:
-        if opt in ['indir', 'outdir', 'imgname']:
-            env[opt] = val
-            if opt == 'indir': indir_set = True
-            if opt == 'outdir': outdir_set = True
-        if opt in ['nthreads', 'nradii', 'patchsize']:
-            env[opt] = int(val)
-        if opt == 'stages':
+    for opt,val in optlist:
+        if opt == '--indir': 
+            indir_set = True
+            env.indir = val
+        if opt == '--outdir': 
+            outdir_set = True
+            env.outdir = val
+        if opt == '--imgname':
+            env.imgname = val
+        if opt == '--nthreads':
+            env.nthreads = int(val)
+        if opt == '--nradii':
+            env.nradii = int(val)
+        if opt == '--patchsize':
+            env.patchsize = int(val)
+            
+        if opt == '--stages':
             # stages in a format of `1,2,3,4,5` or `1-5` (incl.)
             if '-' in val and ',' in val:
                 logging.error("setup_environment: Mixed , and - usage in `stages` parameter. I am not going to parse this.")
                 return False
             if ',' in val:
-                env.stages = map(int,val.split(','))
+                env.stages = list(map(int,val.split(',')))
+                logging.debug('parsing stages as list')
             elif '-' in val:
                 nums = map(int, val.split('-'))
                 env.stages = list(range(nums[0],nums[2]+1))
+                logging.debug('parsing stages as range')
+            else:
+                nums = [int(val)]
+                env.stages = nums
+                logging.debug('parsing stages as a single num')
     # end for
     
+    logging.debug('optlist:')
+    logging.debug(optlist)
+    
+    logging.info('Environment:')
+    logging.info(env)
+    
     if not indir_set:
-        logging.warn(f"setup_environment: `--indir=` arg not set. using default {env.indir}")
+        logging.warning(f"setup_environment: `--indir=` arg not set. using default {env.indir}")
     if not outdir_set:
-        logging.warn(f"setup_environment: `--outdir=` arg not set. using default {env.outdir}")
+        logging.warning(f"setup_environment: `--outdir=` arg not set. using default {env.outdir}")
 
     if not env.stages:
         logging.error('setup_environment: No stages to execute. `--stages=` argument is required. Aborting')
@@ -74,9 +101,6 @@ def setup_environment():
     if 2 in env.stages and not env.imgname:
         logging.error('Stage 2 requested but no imgname provided. `--imgname=` parameter is required')
         return False
-        
-    logging.info('Environment:')
-    logging.info(env)
 
     return True
 

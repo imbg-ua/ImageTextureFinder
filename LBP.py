@@ -18,7 +18,7 @@ from datetime import datetime
 from tqdm import tqdm
 from tqdm.notebook import trange, tqdm
 from joblib import Parallel, delayed
-from numba import njit
+from numba import njit, jit
 import anndata as ad
 
 import useful_functions as uf 
@@ -38,20 +38,25 @@ def prepare_stage1_jobs():
     # Find all input files
     img_list = [] 
     with os.scandir(env.indir) as scandir:
-        logging.info("Searching for input files in '{}'.".format(env.indir))
+        logging.info("prepare_stage1_jobs: Searching for input files in '{}'.".format(env.indir))
         ext_filter = get_infile_extention_regex()
         for entry in scandir:
             if entry.name.startswith('.') or not entry.is_file():
                 continue
             if not ext_filter.match(entry.name):
-                logging.warn("File '{}' has an unsupported file extention".format(entry.name))
+                logging.warn("prepare_stage1_jobs: File '{}' has an unsupported file extention".format(entry.name))
                 continue
-            img_list.append(entry.path)
-    logging.info("Input files:\n%s", '\n'.join(img_list))
+            img_list.append(entry.name)
+            
+    if not img_list:
+        logging.warning("prepare_stage1_jobs: No input files found! Aborting.")
+        sys.exit(1)
+        
+    logging.info("prepare_stage1_jobs: Input files:\n%s", '\n'.join(img_list))
 
     # Generate job list
     df_all = pd.DataFrame(img_list, columns=['Filenames'])
-    df_all['dims'] = list(map(get_dims_from_image, [env.indir]*len(df_all) + df_all['Filenames']))
+    df_all['dims'] = list(map(lambda fname: get_dims_from_image(os.path.join(env.indir, fname)), df_all['Filenames']))
     df_all = uf.create_df_cross_for_separate_dfs(df_all,
                                                 pd.DataFrame(radius_list, columns=['radius']))
     df_all = uf.create_df_cross_for_separate_dfs(df_all,
@@ -62,10 +67,10 @@ def prepare_stage1_jobs():
     df_all['safe_infilename'] = df_all['Filenames'].str.replace(pat='.', repl='_', regex=False)
     
     # Output file will be {env.outdir}/1_lbp_output/{safe_filename}/{safe_infilename}_ch{channel}_r{radius}.npy
-    df_all['Subfolder'] = df_all.apply(lambda row: os.path.join(env.outdir, OUTPUT_DIRS[0], row['safe_infilename']), axis=0)
+    df_all['Subfolder'] = df_all.apply(lambda row: os.path.join(env.outdir, OUTPUT_DIRS[0], row['safe_infilename']), axis=1, result_type='reduce')
 
-    df_all['outfilename'] = df_all.apply(lambda row: generate_stage1_filename(row['safe_infilename'], row['channel'], row['radius'], row['n_points']), axis=0)
-    df_all['Fpath_out'] = df_all.apply(lambda row: os.path.join(df_all['Subfolder'], df_all['outfilename']), axis=0)
+    df_all['outfilename'] = df_all.apply(lambda row: generate_stage1_filename(row['safe_infilename'], row['channel'], row['radius'], row['n_points']), axis=1,  result_type='reduce')
+    df_all['Fpath_out'] = df_all.apply(lambda row: os.path.join(row['Subfolder'], row['outfilename']), axis=1,  result_type='reduce')
     
     df_all['patchsize'] = 100
 
@@ -75,20 +80,20 @@ def prepare_stage1_jobs():
     max_npoints = df_all['n_points'].max()
     mydtype = get_numpy_datatype_unsigned_int(max_npoints);
     df_all['mydtype'] = mydtype
-    logging.info('dtype is {}'.format(mydtype))
+    logging.info('prepare_stage1_jobs: dtype is {}'.format(mydtype))
 
     # check for existing output directories
-    df_all['Subfolder_exists'] = df_all.apply(lambda row: ensure_path_exists(row['Subfolder']))
-    logging.info(df_all['Subfolder_exists'].value_counts)
+    df_all['Subfolder_exists'] = df_all.apply(lambda row: ensure_path_exists(row['Subfolder']), axis=1, result_type='reduce')
+    logging.info(df_all['Subfolder_exists'].value_counts())
 
-    df_all['Fpath_out_exists'] = df_all.apply(lambda row: os.path.exists(row['Fpath_out']))
-    logging.info(df_all['Fpath_out_exists'].value_counts)
+    df_all['Fpath_out_exists'] = df_all.apply(lambda row: os.path.exists(row['Fpath_out']), axis=1, result_type='reduce')
+    logging.info(df_all['Fpath_out_exists'].value_counts())
 
     logging.debug('job list:')
     logging.debug(df_all)
     return df_all
 
-@njit
+#@jit
 def bincount_the_patches(lbp, patchsize, n_points):
     sizex0 = int(lbp.shape[0]/patchsize)
     sizex1 = int(lbp.shape[1]/patchsize)
@@ -105,12 +110,12 @@ def apply_LBP_to_img(img, current_jobs, job_idx):
     job = current_jobs.iloc[job_idx]
     lbp = local_binary_pattern(
         img[:,:, job['channel']], 
-        job['n_points'], 
-        job['radius'], 
+        int(job['n_points']), 
+        int(job['radius']), 
         job['method']
     ).astype(job['mydtype'])
-    lbp = uf.crop_to_superpixel(lbp, job['patchsize'])
-    lbp_bincounts = bincount_the_patches(lbp, job['patchsize'], job['n_points'])
+    lbp = uf.crop_to_superpixel(lbp, int(job['patchsize']))
+    lbp_bincounts = bincount_the_patches(lbp, int(job['patchsize']), int(job['n_points']))
     np.save(job['Fpath_out'], lbp_bincounts)
     np.save(f"{job['Fpath_out']}.imgshp", job['dims']) # save image size as well for futher processing
 
@@ -160,12 +165,14 @@ def stage2_worker(input_basename, stage1_output_dir, original_index, output_file
         for entry in sd: 
             if entry.is_file and entry.name.endswith('.npy'): 
                 name = entry.name[:-4]
-                method = parse_stage1_filename(name)
+                try:
+                    method = parse_stage1_filename(name)
+                except:
+                    continue
                 data_paths.append(entry.path)
                 method_names.append(name) # filename without extention
                 method_list.append(method)
                 method_list_cols += [ f"{name}_v{i}" for i in range(0, method.npoints+2) ]
-                n_method_list_cols += 1
     
     logging.info(f'stage2_worker: found {len(data_paths)} methods. generated {len(method_list_cols)} method_list_cols')
     logging.debug(method_names)
@@ -244,12 +251,14 @@ def stage2_single(input_file_name, patchsize=100):
 
     logging.info(f'stage2: {input_img_basename} ({image_width}*{image_height}): overall_number_of_patches = {height_sp}*{width_sp} = {overall_number_of_patches}')
 
-    anndata_result = stage2_worker(input_img_basename, stage1_output_dir, 0, input_img_basename)
+    anndata_result = stage2_worker(input_file_name, stage1_output_dir, 0, input_img_basename)
     n = anndata_result.X.shape[0]
     out_array_shortened = anndata_result.X
     obs_concat = pd.concat([anndata_result.obs], ignore_index=True)
     logging.info(f'stage2: ad.__version__ = {ad.__version__}')
 
+    ensure_path_exists(stage2_output_dir)
+    
     start = datetime.now();
     output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_X.npy')
     logging.info(f'stage2: saving results to {output_path}...')
@@ -259,6 +268,6 @@ def stage2_single(input_file_name, patchsize=100):
     obs_output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_OBS.csv')
     var_output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_VAR.csv')
     logging.info(f'stage2: saving metadata to {stage2_output_dir}...')
-    np.save(obs_output_path, obs_concat)
-    np.save(var_output_path, anndata_result.var) # todo: check if `var` is the right field 
+    obs_concat.to_csv(obs_output_path)
+    anndata_result.var.to_csv(var_output_path) # todo: check if `var` is the right field 
     logging.info(f'stage2: done saving metadata. took {datetime.now()-start}')

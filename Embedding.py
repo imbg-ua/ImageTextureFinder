@@ -130,6 +130,8 @@ def stage3_umap_single(input_file_name):
     plt.suptitle('Image original_index = ' + str(img_original_index))
     plt.subplots_adjust(wspace=0.3)
     
+    ensure_path_exists(stage3_output_dir)
+    
     output_file_name = f'{input_img_basename}_UMAP.png'
     output_file_path = os.path.join(stage3_output_dir, output_file_name)
 
@@ -308,6 +310,8 @@ def stage4_umap_clustering(input_file_name):
     plt.suptitle('image_index = ' + str(this_image_index), y=1.03)
     # plt.savefig('image_index_' + str(this_image_index) + '.png', dpi=400, bbox_inches='tight', pad_inches=0.01)
     # plt.show()
+    
+    ensure_path_exists(stage4_output_dir)
     
     output_file_name = f'{input_img_basename}_Clusters.png'
     output_file_path = os.path.join(stage4_output_dir, output_file_name)

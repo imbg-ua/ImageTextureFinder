@@ -1,5 +1,7 @@
 
-from collections import namedtuple
+# from collections import namedtuple
+# from namedlist import namedlist
+from dataclasses import dataclass
 from PIL import Image
 import re
 import numpy as np
@@ -7,8 +9,18 @@ import os
 
 cwd = os.getcwd();
 
-Environment = namedtuple('Environment', 
-                         'indir, outdir, nthreads, nradii, patchsize, stages, imgname, final_target_size, partial_upscale')
+@dataclass
+class Environment:
+    indir:str
+    outdir:str
+    nthreads:int
+    nradii:int
+    patchsize:int
+    stages:list
+    imgname:str
+    final_target_size:int
+    partial_upscale:int
+
 global env             # to share an instance between files
 env = Environment(
     indir=os.path.join(cwd, 'data', 'in'),
@@ -42,7 +54,7 @@ img_basename: should be a safename of an image (see `safe_basename``)
 def get_outdir(stage, img_basename):
     stage = int(stage)
     if not (1 <= stage <= 5): raise ValueError('Stage should be in {1,2,3,4,5}')
-    return os.path.join(env.indir, OUTPUT_DIRS[stage], img_basename)
+    return os.path.join(env.outdir, OUTPUT_DIRS[stage-1], img_basename)
 
 def get_radii(n=15):
     radius_list = [round(1.499*1.327**(float(x))) for x in range(0, n)]
@@ -63,7 +75,7 @@ def get_dims_from_image(filepath):
 
 # regex to filter supported input file extentions
 def get_infile_extention_regex():
-    return re.compile(r".(tif|tiff|jpg|jpeg)$", re.IGNORECASE)
+    return re.compile(r"^.*\.(tif|tiff|jpg|jpeg)$", re.IGNORECASE)
 
 # todo: wtf is this
 def get_numpy_datatype_unsigned_int(largest_value):
@@ -84,13 +96,18 @@ def ensure_path_exists(path):
 def safe_basename(path):
     return os.path.basename(path).replace('.','_')
 
-Stage1Method = namedtuple('Stage1Method', 'basename, channel, radius, npoints')
+@dataclass
+class Stage1Method:
+    basename:str
+    channel:int
+    radius:int
+    npoints:int
 
 def generate_stage1_filename(basename, channel, radius, npoints):
-    return '{}_lbp_ch{}_r{}_n{}.npy'.format(basename, channel, radius, npoints)
+    return '{}_lbp_ch{}_r{}_n{}.npy'.format(basename, int(channel), int(radius), int(npoints))
 
 def parse_stage1_filename(name):
-    tok = name.split('.')[0] # remove all extentions
-    tok = name.split('_')
+    tok = name.split('.')[0] # remove all extentions.
+    tok = name.rsplit('_', 3) # at most 3 separators. group leftmost ones
     basename, channel, radius, npoints = tok # explicit to raise error if smthng is wrong
-    return Stage1Method(basename, channel, radius, npoints)
+    return Stage1Method(basename, int(channel[2:]), int(radius[1:]), int(npoints[1:]))
