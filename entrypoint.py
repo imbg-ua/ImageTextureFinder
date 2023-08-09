@@ -4,7 +4,7 @@ Refactored by mkrooted256
 
 import os
 import getopt
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import logging
 
 import sys
@@ -49,12 +49,21 @@ def setup_environment():
     indir_set, outdir_set = False, False
 
     for opt,val in optlist:
-        if opt in ['--indir', '--outdir', '--imgname']:
-            env[opt] = val
-            if opt == '--indir': indir_set = True
-            if opt == '--outdir': outdir_set = True
-        if opt in ['--nthreads', '--nradii', '--patchsize']:
-            env[opt] = int(val)
+        if opt == '--indir': 
+            indir_set = True
+            env.indir = val
+        if opt == '--outdir': 
+            outdir_set = True
+            env.outdir = val
+        if opt == '--imgname':
+            env.imgname = val
+        if opt == '--nthreads':
+            env.nthreads = int(val)
+        if opt == '--nradii':
+            env.nradii = int(val)
+        if opt == '--patchsize':
+            env.patchsize = int(val)
+            
         if opt == '--stages':
             # stages in a format of `1,2,3,4,5` or `1-5` (incl.)
             if '-' in val and ',' in val:

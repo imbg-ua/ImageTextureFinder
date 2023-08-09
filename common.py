@@ -54,7 +54,7 @@ img_basename: should be a safename of an image (see `safe_basename``)
 def get_outdir(stage, img_basename):
     stage = int(stage)
     if not (1 <= stage <= 5): raise ValueError('Stage should be in {1,2,3,4,5}')
-    return os.path.join(env.indir, OUTPUT_DIRS[stage], img_basename)
+    return os.path.join(env.outdir, OUTPUT_DIRS[stage-1], img_basename)
 
 def get_radii(n=15):
     radius_list = [round(1.499*1.327**(float(x))) for x in range(0, n)]
@@ -104,10 +104,10 @@ class Stage1Method:
     npoints:int
 
 def generate_stage1_filename(basename, channel, radius, npoints):
-    return '{}_lbp_ch{}_r{}_n{}.npy'.format(basename, channel, radius, npoints)
+    return '{}_lbp_ch{}_r{}_n{}.npy'.format(basename, int(channel), int(radius), int(npoints))
 
 def parse_stage1_filename(name):
-    tok = name.split('.')[0] # remove all extentions
-    tok = name.split('_')
+    tok = name.split('.')[0] # remove all extentions.
+    tok = name.rsplit('_', 3) # at most 3 separators. group leftmost ones
     basename, channel, radius, npoints = tok # explicit to raise error if smthng is wrong
-    return Stage1Method(basename, channel, radius, npoints)
+    return Stage1Method(basename, int(channel[2:]), int(radius[1:]), int(npoints[1:]))

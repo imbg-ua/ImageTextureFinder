@@ -110,12 +110,12 @@ def apply_LBP_to_img(img, current_jobs, job_idx):
     job = current_jobs.iloc[job_idx]
     lbp = local_binary_pattern(
         img[:,:, job['channel']], 
-        job['n_points'], 
-        job['radius'], 
+        int(job['n_points']), 
+        int(job['radius']), 
         job['method']
     ).astype(job['mydtype'])
-    lbp = uf.crop_to_superpixel(lbp, job['patchsize'])
-    lbp_bincounts = bincount_the_patches(lbp, job['patchsize'], job['n_points'])
+    lbp = uf.crop_to_superpixel(lbp, int(job['patchsize']))
+    lbp_bincounts = bincount_the_patches(lbp, int(job['patchsize']), int(job['n_points']))
     np.save(job['Fpath_out'], lbp_bincounts)
     np.save(f"{job['Fpath_out']}.imgshp", job['dims']) # save image size as well for futher processing
 
@@ -165,12 +165,14 @@ def stage2_worker(input_basename, stage1_output_dir, original_index, output_file
         for entry in sd: 
             if entry.is_file and entry.name.endswith('.npy'): 
                 name = entry.name[:-4]
-                method = parse_stage1_filename(name)
+                try:
+                    method = parse_stage1_filename(name)
+                except:
+                    continue
                 data_paths.append(entry.path)
                 method_names.append(name) # filename without extention
                 method_list.append(method)
                 method_list_cols += [ f"{name}_v{i}" for i in range(0, method.npoints+2) ]
-                n_method_list_cols += 1
     
     logging.info(f'stage2_worker: found {len(data_paths)} methods. generated {len(method_list_cols)} method_list_cols')
     logging.debug(method_names)
@@ -249,12 +251,14 @@ def stage2_single(input_file_name, patchsize=100):
 
     logging.info(f'stage2: {input_img_basename} ({image_width}*{image_height}): overall_number_of_patches = {height_sp}*{width_sp} = {overall_number_of_patches}')
 
-    anndata_result = stage2_worker(input_img_basename, stage1_output_dir, 0, input_img_basename)
+    anndata_result = stage2_worker(input_file_name, stage1_output_dir, 0, input_img_basename)
     n = anndata_result.X.shape[0]
     out_array_shortened = anndata_result.X
     obs_concat = pd.concat([anndata_result.obs], ignore_index=True)
     logging.info(f'stage2: ad.__version__ = {ad.__version__}')
 
+    ensure_path_exists(stage2_output_dir)
+    
     start = datetime.now();
     output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_X.npy')
     logging.info(f'stage2: saving results to {output_path}...')
@@ -264,6 +268,6 @@ def stage2_single(input_file_name, patchsize=100):
     obs_output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_OBS.csv')
     var_output_path = os.path.join(stage2_output_dir, f'{input_img_basename}_LBP_VAR.csv')
     logging.info(f'stage2: saving metadata to {stage2_output_dir}...')
-    np.save(obs_output_path, obs_concat)
-    np.save(var_output_path, anndata_result.var) # todo: check if `var` is the right field 
+    obs_concat.to_csv(obs_output_path)
+    anndata_result.var.to_csv(var_output_path) # todo: check if `var` is the right field 
     logging.info(f'stage2: done saving metadata. took {datetime.now()-start}')

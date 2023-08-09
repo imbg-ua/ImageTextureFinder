@@ -160,6 +160,8 @@ def viz_load_single_data(input_file_name):
     rgblabels = img_as_ubyte(np.load(directory_output_masks + myfilename_rgb))
 
     logging.info(f'{TAG}: begin plotting')
+    
+    ensure_path_exists(stage5_output_dir)
 
     filename = f'{input_img_basename}_viz_int.png'
     filepath = os.path.join(stage5_output_dir,filename)
