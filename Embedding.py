@@ -69,14 +69,14 @@ def stage3_umap_single(input_file_name):
     df_OBS['Groundtruth'] = pd.Categorical(df_OBS['Groundtruth'])
     df_OBS['original_index'] = pd.Categorical(df_OBS['original_index'])
     logging.info(f'stage3_umap_single: OBS loading took {datetime.now()-start}, shape {df_OBS.shape}')
-    logging.debug(df_OBS.head())
+    logging.info(df_OBS.head())
 
     directory_VAR = directory_X_scaled
     filename_VAR = f'{input_img_basename}_LBP_VAR.csv'
     df_VAR = pd.read_csv(os.path.join(directory_VAR, filename_VAR), index_col=0)
     df_VAR.index = df_VAR.index.astype(str)
     logging.info(f'stage3_umap_single: done VAR loading, shape {df_VAR.shape}')
-    logging.debug(df_VAR.head())
+    logging.info(df_VAR.head())
 
     dict_colors = {0:to_rgba(mycolors[0]), 
                1:to_rgba(mycolors[1]), 
@@ -202,14 +202,14 @@ def stage4_umap_clustering(input_file_name):
     df_OBS['Groundtruth'] = pd.Categorical(df_OBS['Groundtruth'])
     df_OBS['original_index'] = pd.Categorical(df_OBS['original_index'])
     logging.info(f'stage4_umap_clustering: OBS loading took {datetime.now()-start}, shape {df_OBS.shape}')
-    logging.debug(df_OBS.head())
+    logging.info(df_OBS.head())
 
     directory_VAR = directory_X_scaled
     filename_VAR = f'{input_img_basename}_LBP_VAR.csv'
     df_VAR = pd.read_csv(os.path.join(directory_VAR, filename_VAR), index_col=0)
     df_VAR.index = df_VAR.index.astype(str)
     logging.info(f'stage4_umap_clustering: done VAR loading, shape {df_VAR.shape}')
-    logging.debug(df_VAR.head())
+    logging.info(df_VAR.head())
 
 
     C, this_image_index = 0, 0

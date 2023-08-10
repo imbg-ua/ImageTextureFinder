@@ -15,6 +15,7 @@ import useful_functions as uf
 from common import *
 from LBP import *
 from Embedding import *
+from Viz import *
 
 """
 features todo:
@@ -25,24 +26,16 @@ features todo:
 # ================= SETTING UP ====================
 #
 
-logging.basicConfig(encoding='utf-8', level=logging.DEBUG)
+logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
 
-def setup_environment():
+def parse_args():
     """
     todo: 
-    - determine input/output directories;
-    - check if they exist and if permissions are ok; create if not;
     - validate paths if we are on a cluster; enabled by default and an explicit cmd flag to disable?
-    - number of threads 
     """
-    pd.set_option('display.max_columns', None)  
-    pd.set_option('display.expand_frame_repr', False)
-    pd.set_option('max_colwidth', None)
-    Image.MAX_IMAGE_PIXELS = None # to skip compression bomb check in PIL
-
-    logging.debug('args:')
-    logging.debug(sys.argv)
+    logging.info('args:')
+    logging.info(sys.argv)
     
     # Parse cli arguments
     optlist, args = getopt.getopt(sys.argv[1:], "", ['stages=', 'indir=', 'outdir=', 'nthreads=', 'nradii=', 'patchsize=', 'imgname='])
@@ -67,57 +60,56 @@ def setup_environment():
         if opt == '--stages':
             # stages in a format of `1,2,3,4,5` or `1-5` (incl.)
             if '-' in val and ',' in val:
-                logging.error("setup_environment: Mixed , and - usage in `stages` parameter. I am not going to parse this.")
+                logging.error("parse_args: Mixed , and - usage in `stages` parameter. I am not going to parse this.")
                 return False
             if ',' in val:
                 env.stages = list(map(int,val.split(',')))
-                logging.debug('parsing stages as list')
+                logging.info('parse_args: parsing stages as list')
             elif '-' in val:
                 nums = map(int, val.split('-'))
                 env.stages = list(range(nums[0],nums[2]+1))
-                logging.debug('parsing stages as range')
+                logging.info('parse_args: parsing stages as range')
             else:
                 nums = [int(val)]
                 env.stages = nums
-                logging.debug('parsing stages as a single num')
+                logging.info('parse_args: parsing stages as a single num')
     # end for
     
-    logging.debug('optlist:')
-    logging.debug(optlist)
+    logging.info('optlist:')
+    logging.info(optlist)
     
     logging.info('Environment:')
     logging.info(env)
-    
+
     if not indir_set:
         logging.warning(f"setup_environment: `--indir=` arg not set. using default {env.indir}")
     if not outdir_set:
         logging.warning(f"setup_environment: `--outdir=` arg not set. using default {env.outdir}")
 
+    return True
+
+def prerequisites():
+    pd.set_option('display.max_columns', None)  
+    pd.set_option('display.expand_frame_repr', False)
+    pd.set_option('max_colwidth', None)
+    Image.MAX_IMAGE_PIXELS = None # to skip compression bomb check in PIL
+
+    logging.info(f'prerequisites: Got stages {env.stages}')
     if not env.stages:
-        logging.error('setup_environment: No stages to execute. `--stages=` argument is required. Aborting')
+        logging.error('prerequisites: No stages to execute. `--stages=` argument is required. Aborting')
         return False
-    logging.info(f'setup_environment: Got stages {env.stages}')
 
     if 2 in env.stages and not env.imgname:
-        logging.error('Stage 2 requested but no imgname provided. `--imgname=` parameter is required')
+        logging.error('prerequisites: Stage 2 requested but no imgname provided. `--imgname=` parameter is required')
         return False
-
+    
     return True
 
 #
 # ================= MAIN ====================
 #
 
-
-def main():
-    logging.info('Henlo')
-
-    if not setup_environment():
-        logging.error('Env not ok')
-        sys.exit(1)
-
-    logging.info('Env ok')
-
+def run_stages():
     if 1 in env.stages:
         logging.info('STAGE 1 BEGIN')
         start = datetime.now();
@@ -147,9 +139,50 @@ def main():
         stage4_umap_clustering(env.imgname)
         logging.info(f'STAGE 4 END. took {datetime.now()-start}')
 
+    if 5 in env.stages:
+        logging.info('STAGE 5 BEGIN')
+        start = datetime.now();
+        load_napari(env.imgname)
+        logging.info(f'STAGE 5 END. took {datetime.now()-start}')
 
+
+
+def main():
+    logging.info('Henlo')
+
+    if not parse_args():
+        logging.error('Arg parsing failed')
+        sys.exit(1)
+    if not prerequisites():
+        logging.error('Prereqs failed')
+        sys.exit(1)
+    
+    logging.info('Env ok')
+    run_stages()
     logging.info('Goodbye')
+    
+    return
 
+
+"""
+An alternative entrypoint to run the pipeline from python (e.g. from jupyter notebook) instead of CLI
+"""
+def run(environment:Environment):
+    logging.info('Henlo')
+    logging.info(environment)
+    
+    global env
+    env = environment
+    logging.info(environment)
+    
+    if not prerequisites():
+        logging.error('Prereqs failed')
+        sys.exit(1)
+        
+    logging.info('Env ok.')
+    run_stages()
+    logging.info('Goodbye')
+    
     return
 
 

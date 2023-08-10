@@ -24,7 +24,6 @@ import skimage
 import useful_functions as uf 
 import numba_funcs as nf
 
-from namedlist import namedlist
 from dataclasses import dataclass
 
 # ==

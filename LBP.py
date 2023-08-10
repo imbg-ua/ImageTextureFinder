@@ -89,8 +89,8 @@ def prepare_stage1_jobs():
     df_all['Fpath_out_exists'] = df_all.apply(lambda row: os.path.exists(row['Fpath_out']), axis=1, result_type='reduce')
     logging.info(df_all['Fpath_out_exists'].value_counts())
 
-    logging.debug('job list:')
-    logging.debug(df_all)
+    logging.info('job list:')
+    logging.info(df_all)
     return df_all
 
 #@jit
