@@ -66,8 +66,8 @@ def parse_args():
                 env.stages = list(map(int,val.split(',')))
                 logging.info('parse_args: parsing stages as list')
             elif '-' in val:
-                nums = map(int, val.split('-'))
-                env.stages = list(range(nums[0],nums[2]+1))
+                nums = list(map(int, val.split('-')))
+                env.stages = list(range(nums[0],nums[1]+1))
                 logging.info('parse_args: parsing stages as range')
             else:
                 nums = [int(val)]
