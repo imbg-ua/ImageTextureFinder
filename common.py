@@ -11,28 +11,20 @@ cwd = os.getcwd();
 
 @dataclass
 class Environment:
-    indir:str
-    outdir:str
-    nthreads:int
-    nradii:int
-    patchsize:int
-    stages:list
-    imgname:str
-    final_target_size:int
-    partial_upscale:int
+    indir:str     =os.path.join(cwd, 'data', 'in')
+    outdir:str    =os.path.join(cwd, 'data', 'out')
+    nthreads:int  =8
+    nradii:int    =15
+    patchsize:int =100
+    stages:list   =None
+    imgname:str   =None
+    final_target_size:int =1
+    partial_upscale:int   =10
+    
+    
 
 global env             # to share an instance between files
-env = Environment(
-    indir=os.path.join(cwd, 'data', 'in'),
-    outdir=os.path.join(cwd, 'data', 'out'),
-    nthreads=8,
-    nradii=15,
-    patchsize=100,
-    stages=None,
-    imgname=None,
-    partial_upscale=10,
-    final_target_size=1
-)
+env = Environment()
 
 COLORS=['#0072b2','#d55e00','#009e73', '#cc79a7','#f0e442','#56b4e9']
 
