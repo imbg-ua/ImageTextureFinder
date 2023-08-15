@@ -995,7 +995,7 @@ def additive_white_background(list_of_arrays, bg=255):
     return overall_array.astype(np.uint8)
 
 
-def return_color_scale(key, show=True):
+def return_color_scale(key, show=False):
     """
     A place to save my colormaps that exist for different purposes
     
@@ -1004,7 +1004,7 @@ def return_color_scale(key, show=True):
     key : TYPE
         DESCRIPTION.
     show : TYPE, optional
-        DESCRIPTION. The default is True.
+        DESCRIPTION. The default is False (was True. @mkrooted).
 
     Returns
     -------

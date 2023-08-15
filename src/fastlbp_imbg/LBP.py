@@ -1,17 +1,15 @@
 
 import os
-import getopt
-from collections import namedtuple
+import sys
 from common import *
 import logging
 
 import numpy as np
+import pandas as pd
+import anndata as ad
 import math
 from PIL import Image
 import skimage
-import os
-import pandas as pd
-import sys
 
 from skimage.feature import local_binary_pattern
 from datetime import datetime
@@ -19,7 +17,6 @@ from tqdm import tqdm
 from tqdm.notebook import trange, tqdm
 from joblib import Parallel, delayed
 from numba import njit, jit
-import anndata as ad
 
 import useful_functions as uf 
 import numba_funcs as nf

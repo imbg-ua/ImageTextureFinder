@@ -1,35 +1,21 @@
-
-import os
-import getopt
-from collections import namedtuple
-from common import *
-import logging
-
-import os
-import getopt
-from collections import namedtuple
-from common import *
-import logging
-
 import numpy as np
-import os
 import pandas as pd
-import sys
-
-from datetime import datetime
-import anndata as ad
-
 import scanpy as sc
 import anndata as ad
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib.colors import to_rgba
 
 import hdbscan
 import umap
 import skimage
 
+import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgba
+
+import logging
+import os
+import sys
+from datetime import datetime
+
+from common import *
 import useful_functions as uf 
 
 pd.set_option('display.max_rows', 40)

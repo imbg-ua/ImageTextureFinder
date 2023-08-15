@@ -1,0 +1,23 @@
+[project]
+name = "fastlbp_imbg"
+version = "0.0.1"
+authors = [
+  { name="Ben Woodhams", email="benwoodhams@outlook.com" },
+  { name="Mykhailo Koreshkov", email="koreshov.m@gmail.com" },
+]
+description = "A small example package"
+keywords = ["lbp", "texture", "features", "image"]
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    
+]
+
+[project.urls]
+"Homepage" = "https://github.com/imbg-ua/ImageTextureFinder"
+"Bug Tracker" = "https://github.com/imbg-ua/ImageTextureFinder/issues"
