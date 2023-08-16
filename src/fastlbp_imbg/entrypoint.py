@@ -6,10 +6,10 @@ import getopt
 import logging
 import sys
 
-from common import *
-from LBP import *
-from Embedding import *
-from Viz import *
+from .common import *
+from .LBP import *
+from .Embedding import *
+from .Viz import *
 
 """
 features todo:

@@ -9,9 +9,9 @@ import pandas as pd
 import skimage
 import matplotlib.pyplot as plt
 
-from common import *
-import useful_functions as uf 
-import numba_funcs as nf
+from .common import *
+from . import useful_functions as uf 
+from . import numba_funcs as nf
 
 # ==
 from copy import deepcopy

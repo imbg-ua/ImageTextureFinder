@@ -15,8 +15,8 @@ import os
 import sys
 from datetime import datetime
 
-from common import *
-import useful_functions as uf 
+from .common import *
+from . import useful_functions as uf 
 
 pd.set_option('display.max_rows', 40)
 pd.set_option('display.max_columns', 100)

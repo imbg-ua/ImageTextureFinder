@@ -1,7 +1,7 @@
 
 import os
 import sys
-from common import *
+from .common import *
 import logging
 
 import numpy as np
@@ -18,8 +18,8 @@ from tqdm.notebook import trange, tqdm
 from joblib import Parallel, delayed
 from numba import njit, jit
 
-import useful_functions as uf 
-import numba_funcs as nf
+from . import useful_functions as uf 
+from . import numba_funcs as nf
 
 
 #
@@ -75,7 +75,7 @@ def prepare_stage1_jobs():
     df_all.reset_index(drop=True, inplace=True)
 
     max_npoints = df_all['n_points'].max()
-    mydtype = get_numpy_datatype_unsigned_int(max_npoints);
+    mydtype = np.uint16    # get_numpy_datatype_unsigned_int(max_npoints);
     df_all['mydtype'] = mydtype
     logging.info('prepare_stage1_jobs: dtype is {}'.format(mydtype))
 
@@ -90,11 +90,11 @@ def prepare_stage1_jobs():
     logging.info(df_all)
     return df_all
 
-#@jit
+@njit
 def bincount_the_patches(lbp, patchsize, n_points):
     sizex0 = int(lbp.shape[0]/patchsize)
     sizex1 = int(lbp.shape[1]/patchsize)
-    output = np.zeros((sizex0, sizex1, n_points+2), dtype=lbp.dtype)
+    output = np.zeros((sizex0, sizex1, n_points+2), dtype=np.uint16) # was dtype=lbp.dtype
     for i in range(sizex0):
         for j in range(sizex1):
             this_patch = lbp[i*patchsize:(i+1)*patchsize, 
@@ -103,20 +103,42 @@ def bincount_the_patches(lbp, patchsize, n_points):
             output[i,j, 0:len(mybincount)] = mybincount
     return output
 
+# @jit
+def lbp_worker(img_mat, npoints:int, radius:int, method:str, patchsize:int, fpath_out:str):
+    # lbp = local_binary_pattern(
+    #     img[:,:, job['channel']], 
+    #     int(job['n_points']), 
+    #     int(job['radius']), 
+    #     job['method']
+    # ).astype(job['mydtype'])
+    # lbp = uf.crop_to_superpixel(lbp, int(job['patchsize']))
+    # lbp_bincounts = bincount_the_patches(lbp, int(job['patchsize']), int(job['n_points']))
+    # np.save(job['Fpath_out'], lbp_bincounts)
+    # np.save(f"{job['Fpath_out']}.imgshp", job['dims']) # save image size as well for futher processing
+    
+    lbp = local_binary_pattern(
+        img_mat, 
+        npoints, 
+        radius, 
+        method
+    ).astype(np.uint16)
+    lbp = uf.crop_to_superpixel(lbp, patchsize)
+    lbp_bincounts = bincount_the_patches(lbp, patchsize, npoints)
+    np.save(fpath_out, lbp_bincounts)
+    
 def apply_LBP_to_img(img, current_jobs, job_idx):
     job = current_jobs.iloc[job_idx]
-    lbp = local_binary_pattern(
-        img[:,:, job['channel']], 
-        int(job['n_points']), 
-        int(job['radius']), 
-        job['method']
-    ).astype(job['mydtype'])
-    lbp = uf.crop_to_superpixel(lbp, int(job['patchsize']))
-    lbp_bincounts = bincount_the_patches(lbp, int(job['patchsize']), int(job['n_points']))
-    np.save(job['Fpath_out'], lbp_bincounts)
-    np.save(f"{job['Fpath_out']}.imgshp", job['dims']) # save image size as well for futher processing
 
-    return 0
+    lbp_worker(
+        img[:,:, job['channel']],
+        int(job['n_points']),
+        int(job['radius']), 
+        job['method'],
+        int(job['patchsize']),
+        job['Fpath_out']
+    )    
+    np.save(f"{job['Fpath_out']}.imgshp", job['dims']) # save image size as well for futher processing
+    logging.info("apply_LBP_to_img: Done '%s'", job['outfilename'])
 
 # formerly 'load_images'
 def lbp_process_single_input_image(image_fname, df_jobs, input_dir):

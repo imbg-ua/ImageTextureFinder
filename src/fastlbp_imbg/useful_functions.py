@@ -832,7 +832,7 @@ def cmap_threshold(lower, mid, upper, color1, color2):
 
 
 def get_euclidean_distance_python_wrapper_for_list(list_vec1, list_vec2):
-    import numba_funcs as nf
+    from . import numba_funcs as nf
 #    print(type(list_vec1))
     #This is useless for FISHDBC because things are an array there
     np_vec1 = np.array(list_vec1)
@@ -1251,7 +1251,7 @@ def return_color_scale(key, show=False):
     return out
 
 def create_mask_from_list_of_coords(dims, list_of_coords, scale_up = 1):
-    import numba_funcs as nf
+    from . import numba_funcs as nf
     """
     This function takes a list of coords [[0,0], [1,1]]
     and makes a mask image out of them 
@@ -1280,7 +1280,7 @@ def create_mask_from_list_of_coords(dims, list_of_coords, scale_up = 1):
 def create_heatmap_from_list_of_coords(dims, list_of_X0, list_of_X1, 
                                        list_of_class, scale_up = 1,
                                        bg_value=0, dtype=np.uint8):
-    import numba_funcs as nf
+    from . import numba_funcs as nf
     """
     Function that adds class integers onto a heatmap
 
@@ -1315,7 +1315,7 @@ def create_heatmap_from_list_of_coords(dims, list_of_X0, list_of_X1,
     
     
 def rgb2labelint(img, array_of_colors = None):
-    import numba_funcs as nf
+    from . import numba_funcs as nf
     if array_of_colors is None:
         print('Started getting colors')
         array_of_colors = np.unique(img.reshape(-1, img.shape[2]), axis=0)
@@ -1412,7 +1412,7 @@ def convert_rgb_to_rgba_without_transparency(img):
 def get_optimal_overlap_of_classes(observed, gt, 
                                    elements_to_remove_from_observed=[-1],
                                    elements_to_remove_from_gt = []):
-    import numba_funcs as nf
+    from . import numba_funcs as nf
     import fastremap
     """
     This function takes two pandas series / lists/ numpy arrays
