@@ -17,11 +17,14 @@ The idea is to use `mkrooted/imbg-fastlbp` as execution environment.
 Note that Singularity should be used instead of default Docker. Nextflow can convert Docker container to a Singularity one automatically.
 
 <!-- TODO: -->
-<!-- Execution example:
+Execution example:
 ```bash
 # working dir is ./src/nextflow
-nextflow .
-``` -->
+nextflow run -profile local \ 
+    --input_dir /mnt/y/IMBG/IMBGImageTextureFinder/data/in \
+    --output_dir /mnt/y/IMBG/IMBGImageTextureFinder/data/out \
+    .
+```
 
 See [main.nf](src/nextflow/main.nf) for details. Unfinished though.
 
