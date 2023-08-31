@@ -31,4 +31,4 @@ RUN conda env update -n base -f /home/imbg/environment.yml
 RUN conda install -n base -c conda-forge hdbscan
 
 # Install fastlbp
-RUN pip3 install fastlbp-imbg==0.0.5
+RUN pip3 install fastlbp-imbg==0.0.6

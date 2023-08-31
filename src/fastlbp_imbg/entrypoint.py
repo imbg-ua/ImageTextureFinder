@@ -20,7 +20,7 @@ features todo:
 # ================= SETTING UP ====================
 #
 
-logging.basicConfig(encoding='utf-8', level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 
 def parse_args():

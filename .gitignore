@@ -111,6 +111,7 @@ env.bak/
 venv.bak/
 smol/
 testenv/
+env8/
 
 # Spyder project settings
 .spyderproject
@@ -131,3 +132,6 @@ dmypy.json
 .pyre/
 
 data/
+
+src/nextflow/.*
+src/nextflow/work/**

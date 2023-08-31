@@ -7,7 +7,7 @@
 nextflow.enable.dsl=2
 OUTPUT_DIR = 'data/out'
 params.images = [
-    [ "id": "img1.jpg", "nradii": 4 ]
+    [ "id": "img1.jpg", "nradii": 2 ]
 ]
 
 process fastlbp_alpha {

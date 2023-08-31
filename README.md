@@ -24,3 +24,53 @@ nextflow .
 ``` -->
 
 See [main.nf](src/nextflow/main.nf) for details. Unfinished though.
+
+
+---
+
+# Guides
+
+## How to build and deploy a pip package
+
+Src: https://packaging.python.org/en/latest/tutorials/packaging-projects/
+
+- Add your access token to `.pypirc`
+    ```
+    # ~/.pypirc 
+    [pypi]
+      username = __token__
+      password = pypi-TOKEN_FROM_YOUR_PYPI_SETTINGS_GOES_HERE
+    ```
+- Install prerequisites
+    ```
+    pip install --upgrade twine build
+    ```
+- Edit project version in `pyproject.toml`
+- Build and upload the project
+    ```
+    cd src/fastlbp_imbg
+    python -m build      # .whl and .gz output will be at ./dist directory
+    python3 -m twine upload dist/*   # note that this can accidentally upload unneeded builds
+    ```
+
+## How to build a docker container
+```
+cd src/container
+docker build -t mkrooted/imbg-fastlbp .   # note the dot
+# this can take a lot of time on local pc
+```
+
+## How to run fastlbp_imbg inside docker manually
+```
+docker run -v /full/path/to/host/data/dir:data mkrooted/imbg-fastlbp \
+    python -m fastlbp_imbg \
+    # --stages=1 --imgname=img1.jpg  \
+    # etc etc other parameters go here
+```
+
+
+- -v stands for volume attachment. it gives the container an access to the files on your host OS.  
+    Syntax: `-v host_path:container_path`
+- `mkrooted/imbg-fastlbp` is image name. should be the same as in `-t` of a `docker build`
+- everything after the first line is a command to run inside the container 
+
