@@ -3,9 +3,9 @@ A project to create an easy-to-use way of finding areas of common patterns and s
 
 See `sample_run.sh` for details.
 
-- Branch `pip` is the latest. It contains a pip packagable version of this project.
-- Branch `baseline` is the most stable. It is not ready for pip tho.
-- Branch `dev` is unstable and for dev purpuses only.
+- Branch `baseline` is the most stable. It is ready for pip packaging.
+- Branch `pip` is stale at the moment
+- Branch `dev` is unstable and for dev purposes only.
 
 
 ## Container
