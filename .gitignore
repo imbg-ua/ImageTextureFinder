@@ -135,3 +135,6 @@ data/
 
 src/nextflow/.*
 src/nextflow/work/**
+
+# VS code
+.vscode/
