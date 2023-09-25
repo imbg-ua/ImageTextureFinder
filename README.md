@@ -43,3 +43,21 @@ Src: https://packaging.python.org/en/latest/tutorials/packaging-projects/
     python -m build      # .whl and .gz output will be at ./dist directory
     python3 -m twine upload dist/*   # note that this can accidentally upload unneeded builds
     ```
+
+---
+
+## Algorithm notes
+
+Step 1 performs an LBP and creates histograms for each **method**.
+
+**Method** is a combination of the following parameters:
+- image name
+- image channel
+- LBP radius
+- LBP number of points
+
+Every method's result got saved into the separate `.npy` file. There is a correspondence betweeen a method and a computational job.
+
+Step 2 collects all the results and concatenate them along the features dimension.
+That means that feature vector of a patch is a concatenation of all LBP codes from all channels and all LBP radii. 
+

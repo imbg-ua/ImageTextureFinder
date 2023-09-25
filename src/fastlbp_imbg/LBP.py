@@ -94,13 +94,14 @@ def prepare_stage1_jobs():
 def bincount_the_patches(lbp, patchsize, n_points):
     sizex0 = int(lbp.shape[0]/patchsize)
     sizex1 = int(lbp.shape[1]/patchsize)
-    output = np.zeros((sizex0, sizex1, n_points+2), dtype=np.uint16) # was dtype=lbp.dtype
+    nfeatures = n_points+2
+    output = np.zeros((sizex0, sizex1, nfeatures), dtype=np.uint16) # was dtype=lbp.dtype
     for i in range(sizex0):
         for j in range(sizex1):
             this_patch = lbp[i*patchsize:(i+1)*patchsize, 
                              j*patchsize:(j+1)*patchsize]
-            mybincount = np.bincount(this_patch.ravel())
-            output[i,j, 0:len(mybincount)] = mybincount
+            mybincount = np.bincount(this_patch.ravel(), minlength=nfeatures)
+            output[i,j,:] = mybincount
     return output
 
 # @jit
@@ -188,6 +189,11 @@ def stage2_worker(input_basename, stage1_output_dir, original_index, output_file
                     method = parse_stage1_filename(name)
                 except:
                     continue
+
+                if method.radius > env.patchsize:
+                    logging.debug(f"stage2_worker: dropping {name} because R > patchsize")
+                    continue
+
                 data_paths.append(entry.path)
                 method_names.append(name) # filename without extention
                 method_list.append(method)
@@ -199,8 +205,11 @@ def stage2_worker(input_basename, stage1_output_dir, original_index, output_file
     # get shape from any file -- it should be the same across all of them
     fpath_for_shape = data_paths[0]
     this_test_array = np.load(fpath_for_shape, mmap_mode='r')
-    this_shape = this_test_array.shape
-    this_dtype = this_test_array.dtype
+    this_dtype = this_test_array.dtype 
+
+    # this was floor(shape/patchsize). it is unaltered now because now we calculate histograms in the previous step
+    this_shape = this_test_array.shape 
+
 
     #this part creates the X0 and X1 coordinates
     x0_array = np.zeros((this_shape[0], this_shape[1]), dtype=np.uint16)
@@ -214,9 +223,13 @@ def stage2_worker(input_basename, stage1_output_dir, original_index, output_file
     #loading the groundtruth
 #    gt = np.load(directory_gt + output_fname_annotated.replace('.jpg', '.npy'))
     
+    # method_list_cols is a list of all names of all features for all methods.
+    # That is, is has length of sum(n_points_for_ith_method)
+
     output_array = np.zeros((this_shape[0], this_shape[1], len(method_list_cols)), dtype=this_dtype)
 #    print(this_shape, this_dtype, output_array.shape)
     
+    # each method has its data in (:,:,(end_of_prev_block+1):(end_of_prev_block+n_features_for_this_method+2))
     start_index = 0
     for idx, (path, method) in enumerate(zip(data_paths, method_list)):
         fpath_to_add = path
@@ -227,6 +240,11 @@ def stage2_worker(input_basename, stage1_output_dir, original_index, output_file
 #        print(fpath_to_add, start_index, end_index, array_to_add.shape)
         output_array[:, :, start_index:end_index] = array_to_add
         start_index = end_index
+
+
+    # That is, now every output_array[x,y,:] is a huge feature vector associated with patch at coords (x,y).
+    # Feature vector is a concatenation of all LBP codes for this patch 
+    #   from all channels and created using different radius/npoints params.
     
     #this part reshapes the arrays
     reshaped = np.reshape(output_array, (-1, output_array.shape[2]))
