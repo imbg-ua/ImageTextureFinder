@@ -1,5 +1,5 @@
 [project]
-name = "fastlbp_imbg"
+name = "fastlbp-baseline-imbg"
 version = "0.0.6"
 authors = [
   { name="Mykhailo Koreshkov", email="koreshov.m@gmail.com" },
