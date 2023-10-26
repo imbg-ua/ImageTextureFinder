@@ -15,21 +15,25 @@ import os
 import sys
 from datetime import datetime
 
-from .common import *
+from .common import safe_basename, get_outdir, safe_basename, ensure_path_exists, \
+    STAGE1, STAGE2, STAGE3, STAGE4, STAGE5, get_dims_from_image
+    
 from . import useful_functions as uf 
 
 pd.set_option('display.max_rows', 40)
 pd.set_option('display.max_columns', 100)
+
+from . import common
 
 #
 # ================= STAGE 3 - UMAP single image ====================
 #
 
 def stage3_umap_single(input_file_name):
-    input_img_fullpath = os.path.join(env.indir, input_file_name)
+    input_img_fullpath = os.path.join(common.env.indir, input_file_name)
     input_img_basename = safe_basename(input_img_fullpath)
     if not os.path.exists(input_img_fullpath):
-        logging.error(f'stage3_umap_single: Cannot find any original images in \'{env.indir}\' that look like {input_file_name}')
+        logging.error(f'stage3_umap_single: Cannot find any original images in \'{common.env.indir}\' that look like {input_file_name}')
         sys.exit(1)
 
     logging.info(f'stage3_umap_single: begin. input_img_basename={input_img_basename}')
@@ -132,10 +136,10 @@ def stage3_umap_single(input_file_name):
 
 
 def stage4_umap_clustering(input_file_name):
-    input_img_fullpath = os.path.join(env.indir, input_file_name)
+    input_img_fullpath = os.path.join(common.env.indir, input_file_name)
     input_img_basename = safe_basename(input_img_fullpath)
     if not os.path.exists(input_img_fullpath):
-        logging.error(f'stage4_umap_clustering: Cannot find any original images in \'{env.indir}\' that look like {input_file_name}')
+        logging.error(f'stage4_umap_clustering: Cannot find any original images in \'{common.env.indir}\' that look like {input_file_name}')
         sys.exit(1)
         
     logging.info(f'stage4_umap_clustering: begin. input_img_basename={input_img_basename}')

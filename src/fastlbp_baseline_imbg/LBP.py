@@ -1,7 +1,6 @@
 
 import os
 import sys
-from .common import *
 import logging
 
 import numpy as np
@@ -21,21 +20,24 @@ from numba import njit, jit
 from . import useful_functions as uf 
 from . import numba_funcs as nf
 
+from .common import get_radii, get_infile_extention_regex, get_dims_from_image, \
+    get_npoints_for_radius, OUTPUT_DIRS, generate_stage1_filename, ensure_path_exists, \
+    parse_stage1_filename, STAGE1, STAGE2, get_outdir, safe_basename
+from . import common
 
 #
 # ================= STAGE 1 ====================
 #
 
-
 # Get list of files from indir. Generate a dataframe with a list of jobs
 def prepare_stage1_jobs():
-    radius_list = get_radii(env.nradii)
-    channel_list = [0,1,2]
+    radius_list = get_radii(common.env.nradii)
 
     # Find all input files
     img_list = [] 
-    with os.scandir(env.indir) as scandir:
-        logging.info("prepare_stage1_jobs: Searching for input files in '{}'.".format(env.indir))
+    img_nchannels = []
+    with os.scandir(common.env.indir) as scandir:
+        logging.info("prepare_stage1_jobs: Searching for input files in '{}'.".format(common.env.indir))
         ext_filter = get_infile_extention_regex()
         for entry in scandir:
             if entry.name.startswith('.') or not entry.is_file():
@@ -43,6 +45,17 @@ def prepare_stage1_jobs():
             if not ext_filter.match(entry.name):
                 logging.warn("prepare_stage1_jobs: File '{}' has an unsupported file extention".format(entry.name))
                 continue
+            
+            try:
+                # try to open the image. note: this does not load it in memory, it only reads the file header
+                img_desc = Image.open(entry.path)
+            except Exception as e:
+                logging.warn("prepare_stage1_jobs: Failed to open file '{}' because of the following exception".format(entry.name))
+                logging.warn(e, exc_info=True)
+                continue
+            
+            # save number of channels
+            img_nchannels.append(len(img_desc.getbands()))
             img_list.append(entry.name)
             
     if not img_list:
@@ -52,19 +65,26 @@ def prepare_stage1_jobs():
     logging.info("prepare_stage1_jobs: Input files:\n%s", '\n'.join(img_list))
 
     # Generate job list
-    df_all = pd.DataFrame(img_list, columns=['Filenames'])
-    df_all['dims'] = list(map(lambda fname: get_dims_from_image(os.path.join(env.indir, fname)), df_all['Filenames']))
+    img_cross_channels = []
+    for img,nchannels in zip(img_list, img_nchannels):
+        for ch in range(nchannels):
+            img_cross_channels.append((img, ch))
+    df_all = pd.DataFrame(img_cross_channels, columns=['Filenames', 'channel'])
+    
+    df_all['dims'] = list(map(lambda fname: get_dims_from_image(os.path.join(common.env.indir, fname)), df_all['Filenames']))
     df_all = uf.create_df_cross_for_separate_dfs(df_all,
                                                 pd.DataFrame(radius_list, columns=['radius']))
-    df_all = uf.create_df_cross_for_separate_dfs(df_all,
-                                                pd.DataFrame(channel_list , columns=['channel']))
+
+    # df_all = uf.create_df_cross_for_separate_dfs(df_all,
+    #                                             pd.DataFrame(channel_list , columns=['channel']))
+
     df_all['n_points'] = get_npoints_for_radius(df_all['radius']) # todo: check if broadcasting works as intended
     df_all['method'] = 'uniform'
 
     df_all['safe_infilename'] = df_all['Filenames'].str.replace(pat='.', repl='_', regex=False)
     
-    # Output file will be {env.outdir}/1_lbp_output/{safe_filename}/{safe_infilename}_ch{channel}_r{radius}.npy
-    df_all['Subfolder'] = df_all.apply(lambda row: os.path.join(env.outdir, OUTPUT_DIRS[0], row['safe_infilename']), axis=1, result_type='reduce')
+    # Output file will be {common.env.outdir}/1_lbp_output/{safe_filename}/{safe_infilename}_ch{channel}_r{radius}.npy
+    df_all['Subfolder'] = df_all.apply(lambda row: os.path.join(common.env.outdir, OUTPUT_DIRS[0], row['safe_infilename']), axis=1, result_type='reduce')
 
     df_all['outfilename'] = df_all.apply(lambda row: generate_stage1_filename(row['safe_infilename'], row['channel'], row['radius'], row['n_points']), axis=1,  result_type='reduce')
     df_all['Fpath_out'] = df_all.apply(lambda row: os.path.join(row['Subfolder'], row['outfilename']), axis=1,  result_type='reduce')
@@ -143,25 +163,40 @@ def apply_LBP_to_img(img, current_jobs, job_idx):
 
 # formerly 'load_images'
 def lbp_process_single_input_image(image_fname, df_jobs, input_dir):
-    logging.info("Begin processing '%s'", image_fname)
+    logging.info("lbp_process_single_input_image: Begin processing '%s'", image_fname)
 
     Image.MAX_IMAGE_PIXELS = None
     img = skimage.io.imread(os.path.join(input_dir, image_fname))
-    current_jobs = df_jobs.loc[df_jobs['Filenames'] == image_fname]
 
-    Parallel(n_jobs=1)(
+    if len(img.shape) != 3:
+        logging.info("lbp_process_single_input_image: image has only 2 dimensions, so I will add a new one")
+        img = img[:,:,np.newaxis]
+
+    # Select jobs with current filename and 
+    nchannels = img.shape[2]
+    current_jobs = df_jobs.loc[(df_jobs['Filenames'] == image_fname) & (df_jobs['channel'] < nchannels)]
+
+    Parallel(n_jobs=common.env.nthreads)(
         ( delayed(apply_LBP_to_img)(img, current_jobs, i) ) for i in trange(len(current_jobs))
     )
 
-    logging.info("End processing '%s'", image_fname)
+    logging.info("lbp_process_single_input_image: End processing '%s'", image_fname)
 
 def lbp_process_all_images(df_pending_jobs, input_dir, n_threads, input_imgs):
-    logging.info('Begin running all pending jobs (%d).', df_pending_jobs.shape[0])
-    Parallel(n_jobs=n_threads)(
-        ( delayed(lbp_process_single_input_image)(img_fname, df_pending_jobs, input_dir) )
-            for img_fname in tqdm(input_imgs, total=len(input_imgs))
-    )
-    logging.info('End running all pending jobs.')
+    logging.info('lbp_process_all_images: Begin running all pending jobs (%d).', df_pending_jobs.shape[0])
+    
+    # We won't process images in parallel
+
+    # Parallel(n_jobs=n_threads)(
+    #     ( delayed(lbp_process_single_input_image)(img_fname, df_pending_jobs, input_dir) )
+    #         for img_fname in tqdm(input_imgs, total=len(input_imgs))
+    # )
+
+    for i, img_fname in enumerate(input_imgs):
+        logging.info(f'lbp_process_all_images: processing image {i+1}/{len(input_imgs)}. fname: {img_fname}')
+        lbp_process_single_input_image(img_fname, df_pending_jobs, input_dir)
+    
+    logging.info('lbp_process_all_images: End running all pending jobs.')
 
 #
 # ================= STAGE 2 ====================
@@ -190,7 +225,7 @@ def stage2_worker(input_basename, stage1_output_dir, original_index, output_file
                 except:
                     continue
 
-                if method.radius > env.patchsize:
+                if method.radius > common.env.patchsize:
                     logging.debug(f"stage2_worker: dropping {name} because R > patchsize")
                     continue
 
@@ -269,10 +304,10 @@ def stage2_worker(input_basename, stage1_output_dir, original_index, output_file
 
 # this is hardcoded to handle the first image only 
 def stage2_single(input_file_name, patchsize=100):
-    input_img_fullpath = os.path.join(env.indir, input_file_name)
+    input_img_fullpath = os.path.join(common.env.indir, input_file_name)
     input_img_basename = safe_basename(input_img_fullpath)
     if not os.path.exists(input_img_fullpath):
-        logging.error(f'stage2_single: Cannot find any original images in \'{env.indir}\' that look like {input_file_name}')
+        logging.error(f'stage2_single: Cannot find any original images in \'{common.env.indir}\' that look like {input_file_name}')
         sys.exit(1)
 
     stage1_output_dir = get_outdir(STAGE1, input_img_basename)

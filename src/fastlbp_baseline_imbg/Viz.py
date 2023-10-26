@@ -9,7 +9,9 @@ import pandas as pd
 import skimage
 import matplotlib.pyplot as plt
 
-from .common import *
+from .common import COLORS, get_dims_from_image, get_outdir, safe_basename, \
+        STAGE1, STAGE2, STAGE3, STAGE4, STAGE5, ensure_path_exists
+
 from . import useful_functions as uf 
 from . import numba_funcs as nf
 
@@ -20,10 +22,12 @@ import napari
 from matplotlib.colors import to_rgb, to_rgba
 from skimage import img_as_ubyte
 from numba import njit
+from PIL import Image
 
 # Use the novnc Desktop in the other window
 # Note that this has to be run first, and separately to the rest of the code for it to work
 
+from . import common
 
 @njit
 def rgb2labelint_iterator(img, array_of_colors):
@@ -103,14 +107,14 @@ def load_viz_colors():
 # ================= STAGE 5 - Napari Visualisation ====================
 #
 
-# uses env.patchsize, env.imgname, env.indir, env.outdir
+# uses common.env.patchsize, common.env.imgname, common.env.indir, common.env.outdir
 def viz_load_single_data(input_file_name):
     TAG = 'viz_load_single_data'
 
-    input_img_fullpath = os.path.join(env.indir, input_file_name)
+    input_img_fullpath = os.path.join(common.env.indir, input_file_name)
     input_img_basename = safe_basename(input_img_fullpath)
     if not os.path.exists(input_img_fullpath):
-        logging.error(f'{TAG}: Cannot find any original images in \'{env.indir}\' that look like {input_file_name}')
+        logging.error(f'{TAG}: Cannot find any original images in \'{common.env.indir}\' that look like {input_file_name}')
         sys.exit(1)
 
     logging.info(f'{TAG}: begin. input_img_basename={input_img_basename}')
@@ -122,7 +126,7 @@ def viz_load_single_data(input_file_name):
     image_width = this_shape[0]
     image_height = this_shape[1]
 
-    directory_img = env.indir
+    directory_img = common.env.indir
     filename_img = input_file_name
     original_image = skimage.io.imread(input_img_fullpath)
     
@@ -208,9 +212,9 @@ def load_napari(input_file_name):
     #
     #     viewer.add_labels(pyr_cluster_edges_gt_45, color = df_colors_out_no_zero, name='Groundtruth_edges', opacity=1)
     
-    partial_upscale = env.partial_upscale if env.partial_upscale else 10
-    patchsize = env.patchsize if env.patchsize else 100
-    final_target_size = env.final_target_size if env.final_target_size else 1
+    partial_upscale = common.env.partial_upscale if common.env.partial_upscale else 10
+    patchsize = common.env.patchsize if common.env.patchsize else 100
+    final_target_size = common.env.final_target_size if common.env.final_target_size else 1
 
     #this the partial upscale needed for creating the edges labels layer
     #the higher this number, the smoother the edges are displayed but the slower it takes

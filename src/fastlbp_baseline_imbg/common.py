@@ -20,11 +20,10 @@ class Environment:
     imgname:str   =None
     final_target_size:int =1
     partial_upscale:int   =10
-    
-    
 
-global env             # to share an instance between files
+global env
 env = Environment()
+
 
 COLORS=['#0072b2','#d55e00','#009e73', '#cc79a7','#f0e442','#56b4e9']
 
