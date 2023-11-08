@@ -66,7 +66,7 @@ def get_dims_from_image(filepath):
 
 # regex to filter supported input file extentions
 def get_infile_extention_regex():
-    return re.compile(r"^.*\.(tif|tiff|jpg|jpeg)$", re.IGNORECASE)
+    return re.compile(r"^.*\.(tif|tiff|jpg|jpeg|png)$", re.IGNORECASE)
 
 # todo: wtf is this
 def get_numpy_datatype_unsigned_int(largest_value):
